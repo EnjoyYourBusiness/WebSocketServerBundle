@@ -17,6 +17,10 @@
         {
             "type": "vcs",
             "url": "git@github.com:EnjoyYourBusiness/WebSocketClientBundle.git"
+        },
+        {
+            "type": "vcs",
+            "url": "git@github.com:Thuata/ListenerBundle.git"
         }
     ],
     "require": {
@@ -24,7 +28,8 @@
         "symfony/symfony": "~3",
         "incenteev/composer-parameter-handler": "~2.0",
         "cboden/ratchet": "^0.3",
-        "EnjoyYourBusiness/websocketclientbundle": "dev-master"
+        "EnjoyYourBusiness/websocketclientbundle": "dev-master",
+        "thuata/listenerbundle": "dev-master"
     },
     "require-dev": {
         "sensio/generator-bundle": "~2.3"

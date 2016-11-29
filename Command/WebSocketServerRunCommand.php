@@ -29,7 +29,7 @@ use Symfony\Component\Console\Output\OutputInterface;
  * @author    Nabil Selfaoui <nabil.selfaoui@enjoyyourbusiness.fr>
  * @copyright 2014 Enjoy Your Business - RCS Bourges B 800 159 295 ©
  */
-class WebSocketServerCommand extends ContainerAwareCommand
+class WebSocketServerRunCommand extends ContainerAwareCommand
 {
     const COMMAND_NAME = 'eyb:websocket:run';
     const COMMAND_DESCRIPTION = 'Starts a web socket server for meetings';
@@ -81,7 +81,7 @@ class WebSocketServerCommand extends ContainerAwareCommand
             $this->getPortToListen()
         );
 
-        $output->writeln(sprintf('<info>Listening on port <comment>%d</comment>, ip <comment>%s</comment></info>', $this->getPortToListen(), $this->getIp()), $output);
+        $output->writeln(sprintf('<info>Listening on port <comment>%d</comment>, ip <comment>%s</comment></info>', $this->getPortToListen(), $this->getIp()));
 
         $server->run();
         $output->writeln('<info>Serveur fermé</info>');
