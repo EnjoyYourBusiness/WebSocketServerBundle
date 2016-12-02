@@ -6,9 +6,12 @@
  * Copyright 2014 Enjoy Your Business - RCS Bourges B 800 159 295 ©
  */
 
-namespace EnjoyYourBusiness\WebSocketServerBundle\Controller;
+namespace EnjoyYourBusiness\WebSocketServerBundle\Bridge\Symfony;
 
 use EnjoyYourBusiness\WebSocketClientBundle\Model\Message;
+use EnjoyYourBusiness\WebSocketServerBundle\Component\ConnectionRequestStack;
+use EnjoyYourBusiness\WebSocketServerBundle\Controller\WebSocketController;
+use Ratchet\ConnectionInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\ControllerResolver;
 
 /**
@@ -48,13 +51,20 @@ class WebSocketControllerResolver extends ControllerResolver
     /**
      * Gets a controller from a message
      *
-     * @param Message $message
+     * @param Message             $message
+     * @param ConnectionInterface $connection
      *
      * @return callable
      */
-    public function getControllerFromMessage(Message $message)
+    public function getControllerFromMessage(Message $message, ConnectionInterface $connection)
     {
-        return $this->createController($message->getAction());
+        /** @var WebSocketController $controller */
+        $controller = $this->createController($message->getAction());
+        if ($controller[0] instanceof WebSocketController) {
+            $controller[0]->setRequest(ConnectionRequestStack::getInstance()->getRequestForConnection($connection));
+        }
+
+        return $controller;
     }
 
     /**

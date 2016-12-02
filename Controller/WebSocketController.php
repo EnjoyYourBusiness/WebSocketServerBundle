@@ -8,6 +8,7 @@
 
 namespace EnjoyYourBusiness\WebSocketServerBundle\Controller;
 
+use Guzzle\Http\Message\Request;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 
 /**
@@ -29,6 +30,11 @@ class WebSocketController extends Controller
     private $clients;
 
     /**
+     * @var Request
+     */
+    private $request;
+
+    /**
      * Sets the clients
      *
      * @param \SplObjectStorage $clients
@@ -46,5 +52,25 @@ class WebSocketController extends Controller
     protected function getClients()
     {
         return $this->clients;
+    }
+
+    /**
+     * Sets the request to the controller
+     *
+     * @param Request $request
+     */
+    public function setRequest(Request $request)
+    {
+        $this->request = $request;
+    }
+
+    /**
+     * Gets the request
+     *
+     * @return Request
+     */
+    protected function getRequest(): Request
+    {
+        return $this->request;
     }
 }

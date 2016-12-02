@@ -2,19 +2,20 @@
 /**
  * Created by Enjoy Your Business.
  * Date: 29/11/2016
- * Time: 15:19
+ * Time: 19:17
  * Copyright 2014 Enjoy Your Business - RCS Bourges B 800 159 295 ©
  */
 
-namespace EnjoyYourBusiness\WebSocketServerBundle;
+namespace EnjoyYourBusiness\WebSocketServerBundle\Bridge\Application;
 
-use EnjoyYourBusiness\WebSocketServerBundle\Command\WebSocketServerRunCommand;
-use Symfony\Component\HttpKernel\Bundle\Bundle;
+use Ratchet\ConnectionInterface;
+use Symfony\Component\Console\Output\OutputInterface;
+
 
 /**
- * Class WebSocketServerBundle
+ * Interface HeadersIntercaptorInterface
  *
- * @package   EnjoyYourBusiness\websocketserverbundle
+ * @package   EnjoyYourBusiness\websocketserverbundle\Bridge\Application
  *
  * @author    Emmanuel Derrien <emmanuel.derrien@enjoyyourbusiness.fr>
  * @author    Anthony Maudry <anthony.maudry@enjoyyourbusiness.fr>
@@ -24,11 +25,7 @@ use Symfony\Component\HttpKernel\Bundle\Bundle;
  * @author    Matthieu Prieur <matthieu.prieur@enjoyyourbusiness.fr>
  * @copyright 2014 Enjoy Your Business - RCS Bourges B 800 159 295 ©
  */
-class WebSocketServerBundle extends Bundle
+interface HeadersInterceptorInterface
 {
-    public function boot()
-    {
-        WebSocketServerRunCommand::setDefaultPort((int) $this->container->getParameter('enjoy.websocket.server.port'));
-    }
-
+    public function treatHeaders(array $headers, ConnectionInterface $connection, OutputInterface $output);
 }

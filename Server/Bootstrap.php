@@ -9,9 +9,13 @@
 namespace EnjoyYourBusiness\WebSocketServerBundle\Server;
 
 use EnjoyYourBusiness\WebSocketClientBundle\Model\Message;
+use EnjoyYourBusiness\websocketserverbundle\Bridge\Application\HeadersInterceptorInterface;
+use EnjoyYourBusiness\WebSocketServerBundle\Bridge\Symfony\WebSocketControllerResolver;
 use Ratchet\ConnectionInterface;
 use Ratchet\MessageComponentInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Bundle\FrameworkBundle\Controller\ControllerNameParser;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\DependencyInjection\ContainerAwareInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 
@@ -41,6 +45,11 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
      * @var ContainerInterface
      */
     private $container;
+
+    /**
+     * @var OutputInterface
+     */
+    private $output;
 
     /**
      * Contains user id in keys and user connections in values
@@ -73,10 +82,14 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
 
     /**
      * Constructor
+     *
+     * @param OutputInterface             $output
      */
-    public function __construct()
+    public function __construct(OutputInterface $output)
     {
+        $this->output = $output;
         $this->clients = new \SplObjectStorage;
+        $this->output->writeln('Created bootstrap');
     }
 
     /**
@@ -91,7 +104,7 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
         // Store the new connection to send messages to later
         $this->clients->attach($conn);
 
-        echo "New connection! ({$conn->resourceId})" . PHP_EOL;
+        $this->output->writeln(sprintf('New connection! (<fg=cyan>%s</>)', $conn->resourceId));
     }
 
     /**
@@ -106,11 +119,11 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
         $message = Message::create(
             $conn,
             [
-                'action' => 'EybHomeBundle:WebSocketEvents:unregisterAll'
+                'action' => 'WebSocketServerBundle:WebSocketEvents:unregisterAll'
             ]
         );
 
-        $response = $this->treatMessage($message);
+        $response = $this->treatMessage($message, $conn);
 
         $this->sendMessage($response);
 
@@ -120,11 +133,12 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
         // Unset connections for logout user
         $logoutUserId = $this->usersConnectionsIds[$conn->resourceId];
         if (is_int($logoutUserId)) {
-            $this->unregisterUser($logoutUserId, $conn);
-            echo "User {$logoutUserId} has disconnected" . PHP_EOL;
+            $this->unRegisterUser($logoutUserId, $conn);
+            $this->output->writeln(sprinf('User (<fg=cyan>%s)</>has <fg=yellow>disconnected</>', $logoutUserId));
+            $this->output->writeln(sprintf('User (<fg=cyan>%s)</>has disconnected', $logoutUserId));
         }
 
-        echo "Connection {$conn->resourceId} has disconnected" . PHP_EOL;
+        $this->output->writeln('Connection {$conn->resourceId} has disconnected');
     }
 
     /**
@@ -138,7 +152,7 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
      */
     public function onError(ConnectionInterface $conn, \Exception $e)
     {
-        echo "An error has occurred: {$e->getMessage()}" . PHP_EOL;
+        $this->output->writeln(sprintf('An <bg=red;fg=white>error</> has occurred: <fg=red>%s</>', $e->getMessage()));
 
         $conn->close();
     }
@@ -154,7 +168,8 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
      */
     public function onMessage(ConnectionInterface $from, $msg)
     {
-        echo sprintf('Received message : %s%s', PHP_EOL, $msg);
+        $this->output->writeln('Received message :');
+        $this->output->writeln(sprintf('<fg=cyan>%s</>', $msg));
         $json = json_decode($msg, true);
 
         if ($json) {
@@ -166,7 +181,7 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
                     $to = array_merge($to, $val);
                 }
                 if (empty($to)) {
-                    echo 'User not connected : message not send' . PHP_EOL;
+                    $this->output->writeln('User not connected : message not send');
 
                     return false;
                 }
@@ -175,7 +190,7 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
             }
             $message = Message::create($from, $json, $to);
 
-            $response = $this->treatMessage($message);
+            $response = $this->treatMessage($message, $from);
 
             $this->sendMessage($response);
         } else {
@@ -185,25 +200,37 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
                 $userId = intval(filter_var($msg, FILTER_SANITIZE_NUMBER_INT));
                 $this->registerUser($userId, $from);
             } else {
-                echo 'ERROR message was not a JSON' . PHP_EOL;
+                $this->output->writeln('<bg=red;fg=white>Error : message was not a JSON</>');
             }
         }
     }
 
     /**
-     * @param Message $message
+     * Treats a message
+     *
+     * @param Message             $message
+     * @param ConnectionInterface $from
      *
      * @return Message
-     *
      * @throws \Exception
      */
-    private function treatMessage(Message $message)
+    private function treatMessage(Message $message, ConnectionInterface $from)
     {
-        echo sprintf('Controller called : "%s"' . PHP_EOL, $message->getAction());
+        $this->output->writeln(sprintf('Controller called : <fg=cyan>"%s</>"', $message->getAction()));
 
         $parser = new ControllerNameParser($this->getContainer()->get('kernel'));
         $resolver = new WebSocketControllerResolver($this->getContainer(), $parser);
-        $controller = $resolver->getControllerFromMessage($message, $this->clients);
+        $controller = $resolver->getControllerFromMessage($message, $from);
+
+//        if (is_array($controller)) {
+//            $callable = sprintf('%s::%s', get_class($controller[0]), $controller[1]);
+//        } else {
+//            $callable = $controller;
+//        }
+
+//        var_dump('===');
+//        var_dump($callable);
+//        var_dump('===');
 
         if (!is_callable($controller)) {
             throw new \Exception('Controller is not callable');
@@ -219,12 +246,12 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
      */
     private function sendMessage(Message $message)
     {
-        echo sprintf(
-            'Sending Message : "%s" to %d client%s' . PHP_EOL,
+        $this->output->writeln(sprintf(
+            'Sending Message : <fg=cyan>"%s"</> to <fg=yellow>%d</> client%s',
             json_encode($message),
             count($message->getTo()),
             count($message->getTo()) > 1 ? 's' : ''
-        );
+        ));
 
         foreach ($message->getTo() as $dest) {
             $dest->send(json_encode($message));
@@ -257,11 +284,11 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
      */
     private function registerUser($userId, ConnectionInterface $from)
     {
-        echo sprintf('Registering user %d (%d)' . PHP_EOL, $userId, $from->resourceId);
+        $this->output->writeln(sprintf('Registering user <fg=cyan>%d</> (<fg=yellow>%d</>)', $userId, $from->resourceId));
 
         $url = $this->container->getParameter('api_authserver_register_mode');
 
-        echo sprintf('Calling URL : %s' . PHP_EOL, $url);
+        $this->output->writeln(sprintf('Calling URL : <fg=cyan>%s</>', $url));
 
         $resource = curl_init();
 
@@ -292,7 +319,7 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
 
         $postDataStr = $this->stringifyData($postData);
 
-        echo sprintf('Creating post : %s' . PHP_EOL, $postDataStr);
+        $this->output->writeln(sprintf('Creating post : <fg=green>%s</>', $postDataStr));
 
         curl_setopt_array($resource, [
             CURLOPT_URL            => $url,
@@ -304,13 +331,13 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
 
         $response = curl_exec($resource);
 
-        echo 'Reveived data : ' . $response . PHP_EOL;
+        $this->output->writeln(sprintf('Reveived data : <fg=green>%s</>', $response));
 
-        echo 'Registering connection' . PHP_EOL;
+        $this->output->writeln('Registering connection');
 
         $this->usersConnections[$userId][] = $from;
         $this->usersConnectionsIds[$from->resourceId] = $userId;
-        echo 'User registered' . PHP_EOL;
+        $this->output->writeln('User registered');
     }
 
     /**
@@ -321,7 +348,7 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
      */
     private function unRegisterUser($userId, ConnectionInterface $from)
     {
-        echo sprintf('Unregistering user %d (%d)' . PHP_EOL, $userId, $from->resourceId);
+        $this->output->writeln(sprintf('Unregistering user <fg=cyan>%d</> (<fg=yellow>%d</>)', $userId, $from->resourceId));
 
         $appName = $this->container->getParameter('appname');
 
@@ -332,7 +359,7 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
             $appName
             );
 
-        echo sprintf('Calling URL : %s' . PHP_EOL, $url);
+        $this->output->writeln(sprintf('Calling URL : <fg=cyan>%s</>', $url));
 
         $resource = curl_init();
 
@@ -357,11 +384,11 @@ class Bootstrap implements MessageComponentInterface, ContainerAwareInterface
 
         $response = curl_exec($resource);
 
-        echo sprintf('Response : %s' . PHP_EOL, $response);
+        $this->output->writeln(sprintf('Response : <bg=white;fg=black>%s</>', $response));
 
         unset($this->usersConnections[$userId]);
         unset($this->usersConnectionsIds[$from->resourceId]);
-        echo 'User unregistered' . PHP_EOL;
+        $this->output->writeln('User unregistered');
     }
 
     /**

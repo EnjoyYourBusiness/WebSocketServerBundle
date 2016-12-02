@@ -9,12 +9,14 @@
 namespace EnjoyYourBusiness\WebSocketServerBundle\Command;
 
 use EnjoyYourBusiness\WebSocketServerBundle\Server\Bootstrap;
+use EnjoyYourBusiness\WebSocketServerBundle\Server\RequestInterceptor;
 use Ratchet\Http\HttpServer;
 use Ratchet\Server\IoServer;
 use Ratchet\WebSocket\WsServer;
-use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Thuata\ListenerBundle\Command\RunListenerCommand;
+use Thuata\ListenerBundle\Component\Listener;
 
 /**
  * Class MeetingServerCommand
@@ -29,61 +31,133 @@ use Symfony\Component\Console\Output\OutputInterface;
  * @author    Nabil Selfaoui <nabil.selfaoui@enjoyyourbusiness.fr>
  * @copyright 2014 Enjoy Your Business - RCS Bourges B 800 159 295 ©
  */
-class WebSocketServerRunCommand extends ContainerAwareCommand
+class WebSocketServerRunCommand extends RunListenerCommand
 {
     const COMMAND_NAME = 'eyb:websocket:run';
     const COMMAND_DESCRIPTION = 'Starts a web socket server for meetings';
-    const ID_SERVICE_FACTORY = 'eyb_base.factory.service';
     const TEXT_GREETINGS = 'Démarrage du serveur de websockets';
 
     /**
-     * Configures the current command.
+     * @var int
      */
-    protected function configure()
+    private static $defaultPort;
+
+    /**
+     * Sets the default port
+     *
+     * @param int $defaultPort
+     */
+    public static function setDefaultPort(int $defaultPort)
     {
-        $this->setName(self::COMMAND_NAME)
-            ->setDescription(self::COMMAND_DESCRIPTION);
+        self::$defaultPort = $defaultPort;
     }
 
-    private function getPortToListen()
+    /**
+     * Gets the port to listen
+     *
+     * @return int
+     */
+    private function getPortToListen(): int
     {
-        return (int) $this->getContainer()->getParameter('enjoy_socket_port');
+        return static::$defaultPort;
     }
 
     private function getIp()
     {
-        return $this->getContainer()->getParameter('enjoy_socket_ip');
+        return $this->getContainer()->getParameter('enjoy.websocket.client.ip');
     }
 
     /**
-     * Executes the command instructions
+     * Runs the listener
      *
+     * @param Listener        $listener
      * @param InputInterface  $input
      * @param OutputInterface $output
-     *
-     * @return int
      */
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function runListener(Listener $listener, InputInterface $input, OutputInterface $output)
     {
-        $eventsMessagehandler = new Bootstrap();
-        $eventsMessagehandler->setContainer($this->getContainer());
 
-        $output->writeln('<info>Démarrage</info>');
+        $eventsMessageHandler = new Bootstrap($output);
+        $eventsMessageHandler->setContainer($this->getContainer());
 
-        $output->writeln(sprintf('<info>Will listen on port <comment>%d</comment>, ip <comment>%s</comment></info>', $this->getPortToListen(), $this->getIp()));
+        $port = $input->getOption(self::OPTION_PORT);
 
         $server = IoServer::factory(
             new HttpServer(
-                new WsServer(
-                    $eventsMessagehandler
+                new RequestInterceptor(
+                    new WsServer(
+                        $eventsMessageHandler
+                    ),
+                    $this->getContainer(),
+                    $output
                 )
             ),
             $this->getPortToListen()
         );
 
-        $output->writeln(sprintf('<info>Listening on port <comment>%d</comment>, ip <comment>%s</comment></info>', $this->getPortToListen(), $this->getIp()));
+        $output->writeln(sprintf('<info>Listening on port <comment>%d</comment>, ip <comment>%s</comment></info>', $port, $this->getIp()));
 
         $server->run();
         $output->writeln('<info>Serveur fermé</info>');
+    }
+
+    /**
+     * Gets the command name
+     *
+     * @return string
+     */
+    public function getCommandName() : string
+    {
+        return self::COMMAND_NAME;
+    }
+
+    /**
+     * Gets the command description
+     *
+     * @return string
+     */
+    public function getCommandDescription() : string
+    {
+        return self::COMMAND_DESCRIPTION;
+    }
+
+    /**
+     * Gets the run listener command name
+     *
+     * @return string
+     */
+    protected function getRunListeningCommandName() : string
+    {
+        return self::COMMAND_NAME;
+    }
+
+    /**
+     * Gets the help for the command
+     *
+     * @return string
+     */
+    protected function getCommandHelp() : string
+    {
+        return '';
+    }
+
+    /**
+     * Gets the stop command message
+     *
+     * @return string
+     */
+    protected function getStopCommandMessage() : string
+    {
+        return RunListenerCommand::CMD_STOP;
+    }
+
+    /**
+     * Gets the default port to listen
+     *
+     * @return int
+     */
+    protected function getDefaultPort(): int
+    {
+        return $this->getPortToListen();
     }
 }
